@@ -3,8 +3,8 @@ import time
 import matplotlib.pyplot as plt
 import csv
 import os
-
-def gpu_benchmark(max_test_number):
+from tqdm import tqdm
+def gpu_benchmark(max_test_number, epochs_per_test):
     if not torch.cuda.is_available():
         print("GPU is not available")
         return
@@ -37,7 +37,7 @@ def gpu_benchmark(max_test_number):
         torch.cuda.synchronize()
         start_time = time.time()
         
-        for _ in range(100):
+        for _ in tqdm(range(epochs_per_test), desc="Running Matmul " + str(size) + "x" + str(size)):
             c = torch.matmul(a, b)
             temp = float(os.popen('nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader').read())
             temperatures.append(temp)
@@ -49,7 +49,7 @@ def gpu_benchmark(max_test_number):
         gpu_usage = final_memory - initial_memory
         
         total_time = end_time - start_time
-        avg_time = total_time / 100
+        avg_time = total_time / epochs_per_test
         
         times.append(avg_time)
         total_times.append(total_time)
@@ -59,16 +59,17 @@ def gpu_benchmark(max_test_number):
         temp_avgs.append(sum(temperatures) / len(temperatures))
         
         print(f"Matrix Size: {size}x{size}")
+        print(f"Epochs: {epochs_per_test}")
         print(f"Average Time: {avg_time:.4f} seconds, Total Time: {total_time:.4f} seconds")
         print(f"GPU Usage: {gpu_usage:.2f} GB")
         print(f"Temperature - Min: {min(temperatures)}°C, Max: {max(temperatures)}°C, Avg: {sum(temperatures)/len(temperatures):.1f}°C\n")
     
     with open(f'{result_dir}/gpu_benchmark_result_{device_name}.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Matrix Size', 'Average Time (s)', 'Total Time (s)', 
+        writer.writerow(['Matrix Size', 'Epochs', 'Average Time (s)', 'Total Time (s)', 
                         'GPU Usage (GB)', 'Min Temp (°C)', 'Max Temp (°C)', 'Avg Temp (°C)'])
         for i, size in enumerate(matrix_sizes):
-            writer.writerow([f"{size}x{size}", f"{times[i]:.4f}", f"{total_times[i]:.4f}",
+            writer.writerow([f"{size}x{size}", f"{epochs_per_test}", f"{times[i]:.4f}", f"{total_times[i]:.4f}",
                            f"{gpu_usages[i]:.2f}", f"{temp_mins[i]:.1f}", 
                            f"{temp_maxs[i]:.1f}", f"{temp_avgs[i]:.1f}"])
     
@@ -83,7 +84,7 @@ def gpu_benchmark(max_test_number):
     
     plt.subplot(2, 2, 2)
     plt.plot(matrix_sizes, total_times, 'ro-')
-    plt.title('Total Time for 100 Operations')
+    plt.title(f'Total Time for {epochs_per_test} Operations')
     plt.xlabel('Matrix Size (N x N)')
     plt.ylabel('Total Time (seconds)')
     plt.grid(True)
@@ -112,4 +113,5 @@ def gpu_benchmark(max_test_number):
 if __name__ == "__main__":
     input("Press Enter to start GPU benchmark...")
     max_test_number = int(input("Enter max test number:"))
-    gpu_benchmark(max_test_number) 
+    epochs_per_test = int(input("Enter epochs per test:"))
+    gpu_benchmark(max_test_number, epochs_per_test) 
